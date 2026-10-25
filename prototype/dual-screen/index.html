@@ -1,0 +1,329 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DS Screen Layouts</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<!--
+  PROTOTYPE, throwaway. Answers mangomu#7: how should the two DS screens look in the browser?
+  Four layouts of one stacked 256x384 video frame (2x nearest-neighbour, per mangomu#3),
+  switchable via #A..#D and the floating bar. Touch on the bottom screen is mapped back
+  to DS coordinates (0-255 x 0-191) and shown live, as the core would receive it.
+-->
+<style>
+  /* Layout: a full-height console bench — slim header, the stage fills the rest, state readout docked beside it. */
+  :root {
+    --bg: #eef0f4;
+    --panel: #ffffff;
+    --ink: #1b1e27;
+    --muted: #5d6475;
+    --line: #d5d9e2;
+    --stage: #23262f;
+    --accent: #2f6fe4;
+    --ok: #1f8a5b;
+    --warn: #b0631a;
+    --font-display: "Silkscreen", ui-monospace, monospace;
+    --font-body: "Atkinson Hyperlegible", system-ui, sans-serif;
+    --font-data: "JetBrains Mono", ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14161c; --panel: #1c1f27; --ink: #e7e9ef; --muted: #9aa1b2; --line: #2d313c;
+      --stage: #0b0c10; --accent: #6b9cff; --ok: #4cc18d; --warn: #e39a52; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161c; --panel: #1c1f27; --ink: #e7e9ef; --muted: #9aa1b2; --line: #2d313c;
+    --stage: #0b0c10; --accent: #6b9cff; --ok: #4cc18d; --warn: #e39a52; color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px;
+    display: flex; flex-direction: column;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 12px; gap: 12px; box-sizing: border-box;
+  }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
+  h1 { font-family: var(--font-display); font-weight: 400; font-size: 20px; margin: 0; letter-spacing: .02em; text-wrap: balance; }
+  header p { margin: 0; color: var(--muted); max-width: 70ch; }
+  .bench { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 12px; }
+  @media (max-width: 760px) { .bench { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 1fr) auto; } }
+  .stage { position: relative; background: var(--stage); border-radius: 10px; overflow: hidden; min-height: 0; touch-action: none; }
+  #view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
+  aside { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 14px; min-width: 0; overflow: auto; }
+  aside h2 { font-family: var(--font-display); font-weight: 400; font-size: 13px; letter-spacing: .06em; margin: 0; color: var(--muted); }
+  .variant-name { font-size: 18px; font-weight: 700; margin: 0; }
+  .variant-note { margin: 0; color: var(--muted); line-height: 1.45; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opts button { font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+  .opts button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+  .opts button:focus-visible, .switcher button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  kbd { font-family: var(--font-data); font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; color: var(--muted); }
+  dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-family: var(--font-data); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  dt { color: var(--muted); }
+  dd { margin: 0; overflow-wrap: anywhere; }
+  .hit { color: var(--ok); } .miss { color: var(--warn); }
+  .switcher {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    display: flex; align-items: center; gap: 4px; padding: 4px;
+    background: var(--ink); color: var(--bg); border-radius: 999px; box-shadow: 0 6px 20px rgba(0,0,0,.35); z-index: 5;
+  }
+  .switcher button { font: inherit; background: transparent; color: inherit; border: 0; width: 34px; height: 34px; border-radius: 999px; cursor: pointer; font-size: 16px; }
+  .switcher button:hover { background: color-mix(in srgb, var(--bg) 18%, transparent); }
+  .switcher span { font-family: var(--font-display); font-size: 12px; padding: 0 8px; white-space: nowrap; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<header>
+  <h1>DS screen layouts</h1>
+  <p>One stacked 256×384 frame, as the encoder sends it, laid out four ways. Click or drag on the bottom screen to see the touch the core would receive. This is a prototype for mangomu #7.</p>
+</header>
+
+<div class="bench">
+  <div class="stage" id="stage"><canvas id="view"></canvas></div>
+  <aside>
+    <div>
+      <h2>Layout</h2>
+      <p class="variant-name" id="vname"></p>
+      <p class="variant-note" id="vnote"></p>
+    </div>
+    <div class="opts" id="opts">
+      <button type="button" id="opt-int" aria-pressed="false">Integer scale <kbd>I</kbd></button>
+      <button type="button" id="opt-swap" aria-pressed="false">Swap screens <kbd>S</kbd></button>
+      <button type="button" id="opt-rot" aria-pressed="false">Rotate other way <kbd>R</kbd></button>
+    </div>
+    <div>
+      <h2>State</h2>
+      <dl id="state"></dl>
+    </div>
+  </aside>
+</div>
+
+<nav class="switcher" aria-label="Layout variant">
+  <button type="button" id="prev" aria-label="Previous layout">←</button>
+  <span id="vlabel"></span>
+  <button type="button" id="next" aria-label="Next layout">→</button>
+</nav>
+
+<script>
+(() => {
+  const DS_W = 256, DS_H = 192, GAP_DS = 8; // gap between screens, in DS pixels
+  const VARIANTS = {
+    A: { name: 'Stacked', note: 'The way the hardware holds them. The top screen sits above the bottom one, and touch is on the lower half. Wastes width on a landscape monitor.' },
+    B: { name: 'Side by side', note: 'Both screens at the same size, next to each other. Fits a landscape monitor best, but the screens are no longer one above the other, so games that pass a sprite between them look disjointed.' },
+    C: { name: 'Focus and inset', note: 'One screen fills the stage and the other is a small inset in the corner. Swap them to suit the game, for example the map on top versus a touch minigame below.' },
+    D: { name: 'Book', note: 'Both screens rotated 90°, for games held sideways like a book (Brain Age, Hotel Dusk). Use Rotate if the game turns the other way.' },
+  };
+  const KEYS = Object.keys(VARIANTS);
+  const opts = { integer: false, swap: false, rotFlip: false };
+  let variant = (location.hash || '').replace('#', '').toUpperCase();
+  if (!KEYS.includes(variant)) variant = 'A';
+
+  // --- Simulated core output: two 256x192 surfaces, composed into one stacked frame, then 2x nearest-neighbour (the encoded track).
+  const frame1x = Object.assign(document.createElement('canvas'), { width: DS_W, height: DS_H * 2 });
+  const f = frame1x.getContext('2d');
+  const track = Object.assign(document.createElement('canvas'), { width: DS_W * 2, height: DS_H * 4 });
+  const t = track.getContext('2d'); t.imageSmoothingEnabled = false;
+
+  let lastTouch = null;        // {x, y} in DS bottom-screen pixels, or null when released
+  const trail = [];            // recent touches, drawn by the "game"
+  let pointerInfo = { surface: '—', ds: '—', accepted: null };
+
+  function drawGame(time) {
+    const s = time / 1000;
+    // Top screen: a little scrolling field with a bobbing sprite and HUD.
+    const sky = f.createLinearGradient(0, 0, 0, DS_H);
+    sky.addColorStop(0, '#5aa8ff'); sky.addColorStop(1, '#c9e6ff');
+    f.fillStyle = sky; f.fillRect(0, 0, DS_W, DS_H);
+    f.fillStyle = '#f3f7ff';
+    for (let i = 0; i < 4; i++) { const cx = ((i * 80 - s * 12) % 320 + 320) % 320 - 32; f.fillRect(cx, 30 + i * 9, 36, 8); f.fillRect(cx + 6, 24 + i * 9, 22, 6); }
+    const ground = 150;
+    for (let x = 0; x < DS_W + 16; x += 16) {
+      const ox = x - ((s * 40) % 16);
+      f.fillStyle = (Math.floor((x + s * 40) / 16) % 2) ? '#4c9a2a' : '#5bb032'; f.fillRect(ox, ground, 16, 8);
+      f.fillStyle = '#8a5a2b'; f.fillRect(ox, ground + 8, 16, DS_H - ground - 8);
+      f.fillStyle = '#76491f'; f.fillRect(ox + 4, ground + 16, 4, 4); f.fillRect(ox + 10, ground + 28, 3, 3);
+    }
+    const bob = Math.round(Math.abs(Math.sin(s * 4)) * -14);
+    f.fillStyle = '#d6332a'; f.fillRect(116, ground - 24 + bob, 16, 12);
+    f.fillStyle = '#ffd7a8'; f.fillRect(118, ground - 34 + bob, 12, 10);
+    f.fillStyle = '#2b2b2b'; f.fillRect(126, ground - 31 + bob, 2, 2);
+    f.fillStyle = '#2a4bd6'; f.fillRect(116, ground - 12 + bob, 6, 12); f.fillRect(126, ground - 12 + bob, 6, 12);
+    f.fillStyle = 'rgba(0,0,0,.45)'; f.fillRect(0, 0, DS_W, 14);
+    f.fillStyle = '#fff'; f.font = '10px monospace'; f.textBaseline = 'top';
+    f.fillText('TOP  LV 3   ♥♥♥   ' + String(Math.floor(s * 10) % 10000).padStart(4, '0'), 4, 2);
+
+    // Bottom screen: a touch menu that reacts to the touch the "core" received.
+    const by = DS_H;
+    f.fillStyle = '#20263a'; f.fillRect(0, by, DS_W, DS_H);
+    const labels = ['ITEMS', 'MAP', 'SAVE', 'PARTY', 'NOTES', 'OPTS'];
+    labels.forEach((label, i) => {
+      const bx = 12 + (i % 3) * 80, byy = by + 40 + Math.floor(i / 3) * 56;
+      const hot = lastTouch && lastTouch.x >= bx && lastTouch.x < bx + 72 && lastTouch.y >= byy - by && lastTouch.y < byy - by + 46;
+      f.fillStyle = hot ? '#ffd23f' : '#3a4566'; f.fillRect(bx, byy, 72, 46);
+      f.fillStyle = hot ? '#20263a' : '#cfd6ee'; f.fillText(label, bx + 8, byy + 18);
+    });
+    f.fillStyle = '#cfd6ee';
+    f.fillText(lastTouch ? `TOUCH ${lastTouch.x},${lastTouch.y}` : 'BOTTOM  tap a button', 4, by + 6);
+    f.strokeStyle = '#ffd23f'; f.lineWidth = 1;
+    trail.forEach((p, i) => { f.globalAlpha = (i + 1) / trail.length; f.strokeRect(p.x - 2, by + p.y - 2, 4, 4); });
+    f.globalAlpha = 1;
+
+    t.clearRect(0, 0, track.width, track.height);
+    t.drawImage(frame1x, 0, 0, track.width, track.height); // 2x nearest-neighbour, as encoded
+  }
+
+  // --- Layouts: each returns screen placements {id, cx, cy, s, rot} in canvas pixels.
+  function fit(s) { return opts.integer ? Math.max(1, Math.floor(s)) : s; }
+  function layout(W, H) {
+    const pad = 16, aw = W - pad * 2, ah = H - pad * 2 - 56; // leave room for the switcher
+    const top = opts.swap ? 'bottom' : 'top', other = opts.swap ? 'top' : 'bottom';
+    switch (variant) {
+      case 'A': {
+        const s = fit(Math.min(aw / DS_W, ah / (DS_H * 2 + GAP_DS)));
+        const totalH = (DS_H * 2 + GAP_DS) * s, y0 = pad + (ah - totalH) / 2;
+        return [
+          { id: top, cx: W / 2, cy: y0 + DS_H * s / 2, s, rot: 0 },
+          { id: other, cx: W / 2, cy: y0 + (DS_H * 1.5 + GAP_DS) * s, s, rot: 0 },
+        ];
+      }
+      case 'B': {
+        const s = fit(Math.min(aw / (DS_W * 2 + GAP_DS), ah / DS_H));
+        const totalW = (DS_W * 2 + GAP_DS) * s, x0 = (W - totalW) / 2, cy = pad + ah / 2;
+        return [
+          { id: top, cx: x0 + DS_W * s / 2, cy, s, rot: 0 },
+          { id: other, cx: x0 + (DS_W * 1.5 + GAP_DS) * s, cy, s, rot: 0 },
+        ];
+      }
+      case 'C': {
+        const s = fit(Math.min(aw / DS_W, ah / DS_H));
+        const cx = W / 2, cy = pad + ah / 2;
+        const si = Math.max(0.5, s * 0.3), m = 10;
+        const mainR = { x: cx + DS_W * s / 2, y: cy + DS_H * s / 2 };
+        return [
+          { id: top, cx, cy, s, rot: 0 },
+          { id: other, cx: Math.min(mainR.x, W - pad) - DS_W * si / 2 - m, cy: Math.min(mainR.y, H - pad) - DS_H * si / 2 - m, s: si, rot: 0, inset: true },
+        ];
+      }
+      case 'D': {
+        // Rotated screens are DS_H wide by DS_W tall on screen.
+        const s = fit(Math.min(aw / (DS_H * 2 + GAP_DS), ah / DS_W));
+        const totalW = (DS_H * 2 + GAP_DS) * s, x0 = (W - totalW) / 2, cy = pad + ah / 2;
+        const rot = opts.rotFlip ? Math.PI / 2 : -Math.PI / 2;
+        const left = opts.rotFlip ? other : top, right = opts.rotFlip ? top : other;
+        return [
+          { id: left, cx: x0 + DS_H * s / 2, cy, s, rot },
+          { id: right, cx: x0 + (DS_H * 1.5 + GAP_DS) * s, cy, s, rot },
+        ];
+      }
+    }
+  }
+
+  // --- Rendering
+  const view = document.getElementById('view');
+  const v = view.getContext('2d');
+  let placements = [], dpr = 1, W = 0, H = 0;
+  function resize() {
+    const r = view.getBoundingClientRect();
+    dpr = window.devicePixelRatio || 1; W = r.width; H = r.height;
+    view.width = Math.round(W * dpr); view.height = Math.round(H * dpr);
+  }
+  function render(time) {
+    drawGame(time);
+    v.setTransform(dpr, 0, 0, dpr, 0, 0);
+    v.clearRect(0, 0, W, H);
+    v.imageSmoothingEnabled = false;
+    placements = layout(W, H);
+    for (const p of placements) {
+      const w = DS_W * p.s, h = DS_H * p.s;
+      v.save(); v.translate(p.cx, p.cy); v.rotate(p.rot);
+      if (p.inset) { v.fillStyle = 'rgba(0,0,0,.6)'; v.fillRect(-w / 2 - 3, -h / 2 - 3, w + 6, h + 6); }
+      const sy = p.id === 'top' ? 0 : DS_H * 2; // source rows in the 2x track
+      v.drawImage(track, 0, sy, DS_W * 2, DS_H * 2, -w / 2, -h / 2, w, h);
+      v.restore();
+    }
+    requestAnimationFrame(render);
+  }
+
+  // --- Touch: invert the placement transform back to DS pixels.
+  function hitTest(px, py) {
+    for (const p of [...placements].reverse()) {
+      const dx = px - p.cx, dy = py - p.cy;
+      const c = Math.cos(-p.rot), sn = Math.sin(-p.rot);
+      const lx = dx * c - dy * sn, ly = dx * sn + dy * c;
+      const u = lx / p.s + DS_W / 2, w = ly / p.s + DS_H / 2;
+      if (u >= 0 && u < DS_W && w >= 0 && w < DS_H) return { id: p.id, x: Math.floor(u), y: Math.floor(w) };
+    }
+    return null;
+  }
+  let down = false;
+  function onPointer(e) {
+    const r = view.getBoundingClientRect();
+    const hit = hitTest(e.clientX - r.left, e.clientY - r.top);
+    if (!hit) { pointerInfo = { surface: 'none', ds: '—', accepted: false }; if (down) release(); return; }
+    pointerInfo = { surface: hit.id, ds: `${hit.x}, ${hit.y}`, accepted: hit.id === 'bottom' };
+    if (down && hit.id === 'bottom') {
+      lastTouch = { x: hit.x, y: hit.y };
+      trail.push(lastTouch); if (trail.length > 24) trail.shift();
+    } else if (down) release();
+    updateState();
+  }
+  function release() { lastTouch = null; updateState(); }
+  view.addEventListener('pointerdown', e => { down = true; view.setPointerCapture(e.pointerId); onPointer(e); });
+  view.addEventListener('pointermove', onPointer);
+  view.addEventListener('pointerup', () => { down = false; release(); });
+  view.addEventListener('pointercancel', () => { down = false; release(); });
+
+  // --- State readout
+  const stateEl = document.getElementById('state');
+  function updateState() {
+    const pl = placements.length ? placements : layout(W, H);
+    const scales = pl.map(p => `${p.id} ×${p.s.toFixed(2)}${p.rot ? ' ⟲' + Math.round(p.rot * 180 / Math.PI) + '°' : ''}`).join('\n');
+    const rows = [
+      ['variant', `${variant} · ${VARIANTS[variant].name}`],
+      ['stage', `${Math.round(W)} × ${Math.round(H)} css px`],
+      ['scale', scales.replace('\n', ' · ')],
+      ['integer', opts.integer ? 'on' : 'off'],
+      ['pointer on', pointerInfo.surface],
+      ['DS coords', pointerInfo.ds],
+      ['core gets', lastTouch ? `<span class="hit">TouchScreen(${lastTouch.x}, ${lastTouch.y})</span>` : (pointerInfo.accepted === false && pointerInfo.surface === 'top' ? '<span class="miss">ignored: top screen</span>' : 'ReleaseScreen()')],
+      ['track', '512 × 768 VP8 (2× of 256 × 384)'],
+    ];
+    stateEl.innerHTML = rows.map(([k, val]) => `<dt>${k}</dt><dd>${val}</dd>`).join('');
+  }
+
+  // --- Variant switching and options
+  const optInt = document.getElementById('opt-int'), optSwap = document.getElementById('opt-swap'), optRot = document.getElementById('opt-rot');
+  function setVariant(k) {
+    variant = k;
+    try { history.replaceState(null, '', '#' + k); } catch (_) {}
+    document.getElementById('vlabel').textContent = `${k} · ${VARIANTS[k].name}`;
+    document.getElementById('vname').textContent = VARIANTS[k].name;
+    document.getElementById('vnote').textContent = VARIANTS[k].note;
+    optRot.hidden = k !== 'D';
+    updateState();
+  }
+  function step(d) { setVariant(KEYS[(KEYS.indexOf(variant) + d + KEYS.length) % KEYS.length]); }
+  function toggle(key, btn) { opts[key] = !opts[key]; btn.setAttribute('aria-pressed', String(opts[key])); updateState(); }
+  document.getElementById('prev').addEventListener('click', () => step(-1));
+  document.getElementById('next').addEventListener('click', () => step(1));
+  optInt.addEventListener('click', () => toggle('integer', optInt));
+  optSwap.addEventListener('click', () => toggle('swap', optSwap));
+  optRot.addEventListener('click', () => toggle('rotFlip', optRot));
+  window.addEventListener('keydown', e => {
+    if (e.target.closest && e.target.closest('input, textarea, [contenteditable]')) return;
+    if (e.key === 'ArrowLeft') step(-1);
+    else if (e.key === 'ArrowRight') step(1);
+    else if (e.key === 'i' || e.key === 'I') toggle('integer', optInt);
+    else if (e.key === 's' || e.key === 'S') toggle('swap', optSwap);
+    else if ((e.key === 'r' || e.key === 'R') && variant === 'D') toggle('rotFlip', optRot);
+  });
+  window.addEventListener('hashchange', () => { const k = location.hash.replace('#', '').toUpperCase(); if (KEYS.includes(k)) setVariant(k); });
+  new ResizeObserver(() => { resize(); updateState(); }).observe(view);
+
+  resize(); setVariant(variant); requestAnimationFrame(render);
+})();
+</script>
